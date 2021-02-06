@@ -4,4 +4,4 @@
 
 ### [여기서 파일 링크를 올린다.] (./mindmap/1.html).  
 
-![img](./mindmap/img/mindmap.png)
+![img](./mindmap/img/mindmap.PNG)
