@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>비트코인 주소꾸미기</title>
+    <meta name="description" content="원하는 패턴의 비트코인 주소를 탐색합니다. 개인키는 브라우저에서만 생성됩니다.">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="crypto-js.min.js"></script>
+    <script src="buffer.js"></script>
+    <script src="bitcoinjs-lib.min.js"></script>
+    <script src="bech32.js"></script>
+    <script src="secp256k1.js"></script>
+</head>
+<body>
+    <div class="glow-container">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+        <div class="glow-orb orb-3"></div>
+    </div>
+
+    <div id="app">
+        <!-- Top Navigation -->
+        <nav class="top-nav">
+            <a href="index.html" class="top-nav-link active">🎲 Vanity Generator</a>
+            <a href="dev-docs.html" class="top-nav-link">📚 개발 문서</a>
+        </nav>
+
+        <!-- Header -->
+        <header>
+            <div class="logo-mark">₿</div>
+            <h1>비트코인 <span class="highlight">주소꾸미기</span></h1>
+            <p class="subtitle">비트코인 주소꾸미기</p>
+            <div class="intro-desc">
+                <p>원하는 패턴의 비트코인 주소를 탐색합니다.</p>
+                <p class="intro-note">주소를 편집하는 것이 아니라, 조건에 맞는 주소가 나올 때까지 무작위 탐색합니다.</p>
+                <p class="intro-secure">🔒 개인키는 브라우저 내부에서만 생성됩니다. 서버로 전송되지 않습니다.</p>
+            </div>
+        </header>
+
+        <main>
+            <!-- 1. 주소 유형 선택 -->
+            <section class="card section-card">
+                <div class="card-title">
+                    <span class="title-icon">①</span>
+                    <span>주소 유형 선택</span>
+                </div>
+                <div class="type-grid" id="type-grid">
+                    <div class="type-card selected" data-type="p2pkh">
+                        <div class="type-badge">Legacy</div>
+                        <div class="type-prefix">1...</div>
+                        <div class="type-example">1A1zP1eP5QGe...</div>
+                        <div class="type-charset">Base58 (대소문자 구분)</div>
+                        <div class="type-difficulty">난이도: ⭐</div>
+                    </div>
+                    <div class="type-card" data-type="p2sh">
+                        <div class="type-badge">P2SH</div>
+                        <div class="type-prefix">3...</div>
+                        <div class="type-example">3J98t1WpEZ73...</div>
+                        <div class="type-charset">Base58 (대소문자 구분)</div>
+                        <div class="type-difficulty">난이도: ⭐</div>
+                    </div>
+                    <div class="type-card" data-type="p2wpkh">
+                        <div class="type-badge">Bech32</div>
+                        <div class="type-prefix">bc1q...</div>
+                        <div class="type-example">bc1qw508d6q...</div>
+                        <div class="type-charset">소문자 + 숫자 (일부 제외)</div>
+                        <div class="type-difficulty">난이도: ⭐⭐</div>
+                    </div>
+                    <div class="type-card" data-type="p2tr">
+                        <div class="type-badge">Taproot</div>
+                        <div class="type-prefix">bc1p...</div>
+                        <div class="type-example">bc1pmfr3p9j0...</div>
+                        <div class="type-charset">소문자 + 숫자 (Bech32m)</div>
+                        <div class="type-difficulty">난이도: ⭐⭐⭐</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. 패턴 입력 -->
+            <section class="card section-card">
+                <div class="card-title">
+                    <span class="title-icon">②</span>
+                    <span>패턴 입력</span>
+                </div>
+
+                <div class="match-mode-row">
+                    <label class="match-radio selected" data-mode="prefix">
+                        <input type="radio" name="matchMode" value="prefix" checked>
+                        <span class="radio-dot"></span>
+                        <span>Prefix (앞자리 일치)</span>
+                    </label>
+                    <label class="match-radio" data-mode="contains">
+                        <input type="radio" name="matchMode" value="contains">
+                        <span class="radio-dot"></span>
+                        <span>Contains (포함)</span>
+                    </label>
+                </div>
+
+                <div class="pattern-input-area">
+                    <div class="input-prefix-label" id="prefix-label">1</div>
+                    <input type="text" id="pattern-input" placeholder="예: LEE, GY, REAL" maxlength="7" autocomplete="off" spellcheck="false">
+                    <div class="char-count"><span id="pattern-length">0</span>/7</div>
+                </div>
+
+                <div id="input-feedback" class="input-feedback"></div>
+
+                <div class="input-help">
+                    <p>💡 길수록 시간이 급격히 늘어납니다. 3~4자 이하를 권장합니다.</p>
+                    <p id="charset-help">허용 문자: 1-9, A-H, J-N, P-Z, a-k, m-z (Base58)</p>
+                </div>
+            </section>
+
+            <!-- 3. 난이도 & 예상 시간 -->
+            <section class="card section-card" id="difficulty-section">
+                <div class="card-title">
+                    <span class="title-icon">③</span>
+                    <span>예상 난이도</span>
+                </div>
+                <div class="difficulty-display">
+                    <div class="diff-badge" id="diff-badge">입력 대기</div>
+                    <div class="diff-stats">
+                        <div class="diff-stat">
+                            <span class="label">예상 시도 횟수</span>
+                            <span class="value" id="est-attempts">—</span>
+                        </div>
+                        <div class="diff-stat">
+                            <span class="label">예상 시간 (약)</span>
+                            <span class="value" id="est-time">—</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. 생성 제어 -->
+            <section class="card section-card">
+                <div class="card-title">
+                    <span class="title-icon">④</span>
+                    <span>탐색 제어</span>
+                </div>
+                <div class="control-buttons">
+                    <button id="btn-start" class="ctrl-btn btn-start">
+                        <span class="btn-icon">▶</span> 탐색 시작
+                    </button>
+                    <button id="btn-pause" class="ctrl-btn btn-pause hidden">
+                        <span class="btn-icon">⏸</span> 일시정지
+                    </button>
+                    <button id="btn-resume" class="ctrl-btn btn-resume hidden">
+                        <span class="btn-icon">▶</span> 재개
+                    </button>
+                    <button id="btn-stop" class="ctrl-btn btn-stop hidden">
+                        <span class="btn-icon">⏹</span> 중지
+                    </button>
+                </div>
+            </section>
+
+            <!-- 5. 실시간 진행 상태 -->
+            <section id="progress-section" class="card section-card hidden">
+                <div class="card-title">
+                    <span class="title-icon">⚡</span>
+                    <span>실시간 진행 상태</span>
+                    <span id="status-badge" class="status-badge running">탐색 중</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div id="search-progress-bar" class="search-progress-bar"></div>
+                </div>
+                <div class="live-stats-grid">
+                    <div class="live-stat">
+                        <span class="label">총 시도</span>
+                        <span class="value" id="live-attempts">0</span>
+                    </div>
+                    <div class="live-stat">
+                        <span class="label">초당 속도</span>
+                        <span class="value" id="live-speed">0 keys/s</span>
+                    </div>
+                    <div class="live-stat">
+                        <span class="label">경과 시간</span>
+                        <span class="value" id="live-elapsed">0초</span>
+                    </div>
+                </div>
+                <div class="live-feed">
+                    <div class="feed-item">
+                        <span class="label">현재 테스트 주소:</span>
+                        <span id="live-current-addr" class="mono feed-value">대기 중...</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 6. 결과 -->
+            <section id="result-section" class="card section-card result-card hidden">
+                <div class="card-title">
+                    <span class="title-icon">✨</span>
+                    <span>매칭된 주소를 찾았습니다!</span>
+                </div>
+                <div class="result-main">
+                    <div class="result-row">
+                        <span class="label">주소</span>
+                        <span id="result-address" class="mono result-value highlight-addr"></span>
+                        <button class="copy-btn" data-target="result-address">복사</button>
+                    </div>
+                    <div class="result-row">
+                        <span class="label">주소 유형</span>
+                        <span id="result-type" class="result-value"></span>
+                    </div>
+                    <div class="result-row">
+                        <span class="label">총 시도 횟수</span>
+                        <span id="result-attempts" class="result-value"></span>
+                    </div>
+                    <div class="result-row">
+                        <span class="label">소요 시간</span>
+                        <span id="result-elapsed" class="result-value"></span>
+                    </div>
+                    <div class="result-row">
+                        <span class="label">평균 속도</span>
+                        <span id="result-speed" class="result-value"></span>
+                    </div>
+                </div>
+
+                <!-- 개인키 영역 (숨겨진 상태) -->
+                <div class="privkey-area">
+                    <button id="btn-show-privkey" class="ctrl-btn btn-reveal">
+                        🔑 개인키 보기 (주의)
+                    </button>
+                    <div id="privkey-details" class="privkey-details hidden">
+                        <div class="result-row">
+                            <span class="label">Private Key (WIF)</span>
+                            <span id="result-wif" class="mono result-value"></span>
+                            <button class="copy-btn" data-target="result-wif">복사</button>
+                        </div>
+                        <div class="result-row">
+                            <span class="label">Private Key (Hex)</span>
+                            <span id="result-privhex" class="mono result-value"></span>
+                            <button class="copy-btn" data-target="result-privhex">복사</button>
+                        </div>
+                        <div class="result-row">
+                            <span class="label">Public Key (Hex)</span>
+                            <span id="result-pubhex" class="mono result-value"></span>
+                            <button class="copy-btn" data-target="result-pubhex">복사</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 다운로드 -->
+                <div class="download-area">
+                    <button id="btn-download-txt" class="dl-btn">📄 TXT 다운로드</button>
+                    <button id="btn-download-json" class="dl-btn">📋 JSON 다운로드</button>
+                    <button id="btn-clear" class="dl-btn btn-danger">🗑️ 메모리 정리</button>
+                </div>
+            </section>
+
+            <!-- 7. 보안 안내 -->
+            <section class="card section-card security-card">
+                <div class="card-title">
+                    <span class="title-icon">🛡️</span>
+                    <span>보안 안내</span>
+                </div>
+                <div class="security-items">
+                    <div class="sec-item warn">⚠️ 이 개인키를 잃어버리면 주소를 다시 사용할 수 없습니다.</div>
+                    <div class="sec-item warn">⚠️ 개인키를 다른 사람과 공유하면 자산 통제권도 함께 넘어갑니다.</div>
+                    <div class="sec-item warn">⚠️ 공용 PC에서는 사용하지 마세요.</div>
+                    <div class="sec-item info">🔒 모든 키는 브라우저 내부에서만 생성되며 서버로 전송되지 않습니다.</div>
+                    <div class="sec-item info">💡 결과를 안전하게 저장한 후 반드시 "메모리 정리" 버튼을 눌러주세요.</div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Bitcoin Vanity Address Generator — 브라우저 로컬 생성형</p>
+            <p class="footer-note">개인키는 서버에 전송되지 않습니다. 오픈소스 라이브러리: bitcoinjs-lib, noble-secp256k1, bech32</p>
+            <div class="footer-docs">
+                <p class="footer-docs-title">📚 개발 문서</p>
+                <div class="footer-links">
+                    <a href="https://github.com/bitcoinjs/bitcoinjs-lib" target="_blank" rel="noopener noreferrer">bitcoinjs-lib</a>
+                    <a href="https://github.com/paulmillr/noble-secp256k1" target="_blank" rel="noopener noreferrer">noble-secp256k1</a>
+                    <a href="https://github.com/bitcoinjs/bech32" target="_blank" rel="noopener noreferrer">bech32</a>
+                    <a href="https://github.com/brix/crypto-js" target="_blank" rel="noopener noreferrer">CryptoJS</a>
+                    <a href="https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki" target="_blank" rel="noopener noreferrer">BIP-32 (HD Wallets)</a>
+                    <a href="https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki" target="_blank" rel="noopener noreferrer">BIP-39 (Mnemonic)</a>
+                    <a href="https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki" target="_blank" rel="noopener noreferrer">BIP-44 (Multi-Account)</a>
+                    <a href="https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki" target="_blank" rel="noopener noreferrer">BIP-141 (SegWit)</a>
+                    <a href="https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki" target="_blank" rel="noopener noreferrer">BIP-341 (Taproot)</a>
+                    <a href="https://github.com/bitcoin/bips/blob/master/bip-0350.mediawiki" target="_blank" rel="noopener noreferrer">BIP-350 (Bech32m)</a>
+                    <a href="https://developer.bitcoin.org/" target="_blank" rel="noopener noreferrer">Bitcoin Developer Guide</a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- 보안 경고 모달 -->
+    <div id="privkey-modal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <div class="modal-icon">⚠️</div>
+            <h2>개인키 열람 경고</h2>
+            <div class="modal-warnings">
+                <p>🔴 이 개인키를 본인 외 누구와도 공유하지 마세요.</p>
+                <p>🔴 이 키를 가진 사람은 이 주소의 자산을 완전히 통제할 수 있습니다.</p>
+                <p>🔴 스크린샷이나 화면 녹화에 주의하세요.</p>
+            </div>
+            <div class="modal-actions">
+                <button id="modal-confirm" class="ctrl-btn btn-start">이해했습니다. 개인키 보기</button>
+                <button id="modal-cancel" class="ctrl-btn btn-stop">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

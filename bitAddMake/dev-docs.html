@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>개발 문서 — Bitcoin Vanity Address Generator</title>
+    <meta name="description" content="Bitcoin Vanity Address Generator 프로젝트의 개발 문서, 아키텍처, API 참조">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #030a14;
+            --bg-card: rgba(14,165,233,0.03);
+            --border: rgba(56,189,248,0.1);
+            --accent: #38bdf8;
+            --accent2: #6366f1;
+            --accent3: #2dd4bf;
+            --success: #34d399;
+            --danger: #f87171;
+            --warn: #fbbf24;
+            --text: #e8f4fc;
+            --text2: #7da8c4;
+            --text3: #3a6080;
+            --font: 'Outfit', sans-serif;
+            --mono: 'JetBrains Mono', monospace;
+            --r: 16px;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font);
+            line-height: 1.75;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ===== Layout ===== */
+        .page { display: flex; min-height: 100vh; }
+        .sidebar {
+            width: 260px;
+            position: fixed;
+            top: 0; left: 0;
+            height: 100vh;
+            background: rgba(3,10,20,0.95);
+            border-right: 1px solid var(--border);
+            padding: 2rem 1.25rem;
+            overflow-y: auto;
+            z-index: 100;
+            backdrop-filter: blur(16px);
+        }
+        .main {
+            margin-left: 260px;
+            flex: 1;
+            max-width: 900px;
+            padding: 3rem 3rem 4rem;
+        }
+
+        /* Sidebar */
+        .sidebar-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--accent);
+            margin-bottom: 1.5rem;
+            font-weight: 700;
+        }
+        .sidebar-logo {
+            font-size: 1.8rem;
+            margin-bottom: 0.3rem;
+        }
+        .nav-section {
+            margin-bottom: 1.25rem;
+        }
+        .nav-section-title {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text3);
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+        .nav-link {
+            display: block;
+            padding: 0.35rem 0.75rem;
+            color: var(--text2);
+            text-decoration: none;
+            font-size: 0.82rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+            margin-bottom: 2px;
+        }
+        .nav-link:hover {
+            background: rgba(255,255,255,0.04);
+            color: var(--text);
+        }
+        .nav-link.active {
+            background: rgba(56,189,248,0.1);
+            color: var(--accent);
+        }
+
+        /* Header */
+        .doc-header {
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .doc-header h1 {
+            font-size: 2.4rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+        }
+        .doc-header h1 span { color: var(--accent); }
+        .doc-header .subtitle {
+            color: var(--text2);
+            font-size: 0.9rem;
+        }
+        .version-badge {
+            display: inline-block;
+            background: rgba(56,189,248,0.12);
+            color: var(--accent);
+            padding: 3px 12px;
+            border-radius: 6px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            margin-top: 0.75rem;
+        }
+
+        /* Sections */
+        .section {
+            margin-bottom: 3rem;
+            scroll-margin-top: 2rem;
+        }
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+        h2 .num {
+            font-size: 0.8rem;
+            background: var(--accent);
+            color: #000;
+            width: 28px; height: 28px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+        }
+        h3 {
+            font-size: 1.05rem;
+            color: var(--accent);
+            margin-bottom: 0.75rem;
+            margin-top: 1.5rem;
+            font-weight: 700;
+        }
+        p { color: var(--text2); margin-bottom: 0.8rem; font-size: 0.9rem; }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--r);
+            padding: 1.75rem;
+            margin-bottom: 1.25rem;
+        }
+
+        /* Tables */
+        .table-wrap { overflow-x: auto; margin-bottom: 1.25rem; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+        }
+        th {
+            text-align: left;
+            padding: 0.7rem 1rem;
+            background: rgba(56,189,248,0.06);
+            color: var(--accent);
+            font-weight: 700;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border);
+        }
+        td {
+            padding: 0.65rem 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            color: var(--text2);
+        }
+        tr:hover td { background: rgba(255,255,255,0.015); }
+
+        /* Code */
+        code {
+            font-family: var(--mono);
+            background: rgba(255,255,255,0.06);
+            padding: 2px 7px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            color: var(--accent3);
+        }
+        pre {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            overflow-x: auto;
+            margin-bottom: 1.25rem;
+            font-family: var(--mono);
+            font-size: 0.78rem;
+            line-height: 1.7;
+            color: var(--text2);
+        }
+        pre .comment { color: var(--text3); }
+        pre .keyword { color: var(--accent2); }
+        pre .string { color: var(--success); }
+        pre .func { color: var(--accent); }
+
+        /* File tree */
+        .file-tree {
+            background: rgba(0,0,0,0.35);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem 2rem;
+            font-family: var(--mono);
+            font-size: 0.78rem;
+            line-height: 1.9;
+            color: var(--text2);
+            margin-bottom: 1.25rem;
+        }
+        .file-tree .dir { color: var(--accent2); font-weight: 700; }
+        .file-tree .file { color: var(--text); }
+        .file-tree .desc { color: var(--text3); }
+
+        /* Flow diagram */
+        .flow {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.25rem;
+        }
+        .flow-step {
+            background: rgba(99,102,241,0.1);
+            border: 1px solid rgba(99,102,241,0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 10px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--accent2);
+        }
+        .flow-arrow { color: var(--text3); font-size: 0.9rem; }
+
+        /* Protocol cards */
+        .proto-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+        }
+        .proto-card {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+        }
+        .proto-card.send { border-left: 3px solid var(--accent); }
+        .proto-card.recv { border-left: 3px solid var(--success); }
+        .proto-dir {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.4rem;
+            font-weight: 700;
+        }
+        .proto-card.send .proto-dir { color: var(--accent); }
+        .proto-card.recv .proto-dir { color: var(--success); }
+        .proto-cmd {
+            font-family: var(--mono);
+            font-size: 0.9rem;
+            font-weight: 700;
+            margin-bottom: 0.3rem;
+        }
+        .proto-desc { font-size: 0.78rem; color: var(--text3); }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            margin-right: 0.3rem;
+        }
+        .badge-easy { background: rgba(52,211,153,0.15); color: #34d399; }
+        .badge-normal { background: rgba(251,191,36,0.15); color: #fbbf24; }
+        .badge-hard { background: rgba(248,113,113,0.15); color: #f87171; }
+        .badge-accent { background: rgba(56,189,248,0.12); color: var(--accent); }
+
+        /* Alert boxes */
+        .alert {
+            padding: 1rem 1.25rem;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            font-size: 0.82rem;
+        }
+        .alert-warn {
+            background: rgba(251,191,36,0.06);
+            border: 1px solid rgba(251,191,36,0.15);
+            color: var(--warn);
+        }
+        .alert-info {
+            background: rgba(52,211,153,0.06);
+            border: 1px solid rgba(52,211,153,0.15);
+            color: var(--success);
+        }
+        .alert-danger {
+            background: rgba(248,113,113,0.06);
+            border: 1px solid rgba(248,113,113,0.15);
+            color: var(--danger);
+        }
+
+        /* Charset display */
+        .charset-box {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 0.75rem;
+        }
+        .charset-label {
+            font-size: 0.72rem;
+            color: var(--text3);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.4rem;
+            font-weight: 700;
+        }
+        .charset-chars {
+            font-family: var(--mono);
+            font-size: 0.85rem;
+            color: var(--accent3);
+            word-break: break-all;
+            letter-spacing: 1.5px;
+        }
+        .charset-forbidden {
+            color: var(--danger);
+            font-weight: 700;
+        }
+
+        /* Performance bars */
+        .perf-bar {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+        }
+        .perf-label {
+            font-size: 0.78rem;
+            color: var(--text2);
+            min-width: 140px;
+        }
+        .perf-track {
+            flex: 1;
+            height: 8px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .perf-fill {
+            height: 100%;
+            border-radius: 4px;
+            background: linear-gradient(90deg, var(--accent), var(--accent3));
+        }
+        .perf-value {
+            font-family: var(--mono);
+            font-size: 0.78rem;
+            color: var(--text);
+            min-width: 120px;
+            text-align: right;
+        }
+
+        /* Checklist */
+        .checklist { list-style: none; margin-bottom: 1rem; }
+        .checklist li {
+            padding: 0.4rem 0;
+            font-size: 0.85rem;
+            color: var(--text2);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .check { color: var(--text3); font-size: 1rem; }
+        .check.done { color: var(--success); }
+
+        /* Top nav */
+        .top-nav {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            padding: 0.4rem;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+        }
+        .top-nav-link {
+            padding: 0.5rem 1.1rem;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text2);
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.25s;
+        }
+        .top-nav-link:hover {
+            color: var(--text);
+            background: rgba(255,255,255,0.05);
+        }
+        .top-nav-link.active {
+            color: var(--accent);
+            background: rgba(56,189,248,0.1);
+        }
+
+        /* Mobile sidebar toggle */
+        .mobile-toggle {
+            display: none;
+            position: fixed;
+            top: 1rem; left: 1rem;
+            z-index: 200;
+            background: var(--accent);
+            color: #000;
+            border: none;
+            width: 40px; height: 40px;
+            border-radius: 10px;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; padding: 2rem 1.25rem; }
+            .mobile-toggle { display: flex; align-items: center; justify-content: center; }
+            h2 { font-size: 1.25rem; }
+        }
+    </style>
+</head>
+<body>
+<button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+
+<div class="page">
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-logo">₿</div>
+        <div class="sidebar-title">개발 문서</div>
+
+        <div class="nav-section">
+            <div class="nav-section-title">개요</div>
+            <a href="#overview" class="nav-link active">프로젝트 개요</a>
+            <a href="#files" class="nav-link">파일 구조</a>
+            <a href="#types" class="nav-link">지원 주소 타입</a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">아키텍처</div>
+            <a href="#arch" class="nav-link">핵심 아키텍처</a>
+            <a href="#protocol" class="nav-link">Worker 프로토콜</a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">모듈 참조</div>
+            <a href="#modules" class="nav-link">주요 모듈</a>
+            <a href="#validation" class="nav-link">입력 검증</a>
+            <a href="#difficulty" class="nav-link">난이도 계산</a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">보안 & 출력</div>
+            <a href="#security" class="nav-link">보안 설계</a>
+            <a href="#output" class="nav-link">결과 출력</a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-title">부록</div>
+            <a href="#compat" class="nav-link">브라우저 호환성</a>
+            <a href="#perf" class="nav-link">성능 참고</a>
+            <a href="#roadmap" class="nav-link">향후 확장</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main">
+        <nav class="top-nav">
+            <a href="index.html" class="top-nav-link">🎲 Vanity Generator</a>
+            <a href="dev-docs.html" class="top-nav-link active">📚 개발 문서</a>
+        </nav>
+
+        <!-- Header -->
+        <div class="doc-header">
+            <h1>Bitcoin Vanity <span>Address Generator</span></h1>
+            <p class="subtitle">개발 문서 · 아키텍처 참조 · API 가이드</p>
+            <span class="version-badge">v1.0.0 MVP · 2026-03-22</span>
+        </div>
+
+        <!-- 1. Overview -->
+        <section class="section" id="overview">
+            <h2><span class="num">1</span> 프로젝트 개요</h2>
+            <div class="table-wrap">
+                <table>
+                    <tr><th style="width:160px">항목</th><th>내용</th></tr>
+                    <tr><td>서비스명</td><td>Bitcoin Vanity Address Generator</td></tr>
+                    <tr><td>목적</td><td>사용자가 원하는 패턴의 비트코인 주소를 브라우저에서 로컬 탐색</td></tr>
+                    <tr><td>아키텍처</td><td>클라이언트 로컬 생성형 <span class="badge badge-accent">서버 미전송</span></td></tr>
+                    <tr><td>기술 스택</td><td>HTML5 + Vanilla CSS + JavaScript (Web Worker)</td></tr>
+                    <tr><td>외부 라이브러리</td><td><code>bitcoinjs-lib</code>, <code>noble-secp256k1</code>, <code>bech32</code>, <code>CryptoJS</code></td></tr>
+                </table>
+            </div>
+            <div class="alert alert-info">
+                🔒 핵심 원칙: <strong>개인키는 브라우저 내부에서만 생성되며, 서버로 절대 전송되지 않습니다.</strong>
+            </div>
+        </section>
+
+        <!-- 2. File Structure -->
+        <section class="section" id="files">
+            <h2><span class="num">2</span> 파일 구조</h2>
+            <div class="file-tree">
+                <span class="dir">test_page/</span><br>
+                ├── <span class="file">index.html</span> <span class="desc">— 메인 페이지 (단일 페이지)</span><br>
+                ├── <span class="file">style.css</span> <span class="desc">— 프리미엄 UI 스타일</span><br>
+                ├── <span class="file">script.js</span> <span class="desc">— 메인 로직 (UI 제어, 입력 검증, Worker 통신)</span><br>
+                ├── <span class="file">vanity-worker.js</span> <span class="desc">— Web Worker (주소 생성 + 패턴 매칭)</span><br>
+                ├── <span class="file">buffer.js</span> <span class="desc">— Buffer shim (bitcoinjs-lib 호환)</span><br>
+                ├── <span class="file">bitcoinjs-lib.min.js</span> <span class="desc">— 비트코인 주소 생성 라이브러리</span><br>
+                ├── <span class="file">secp256k1.js</span> <span class="desc">— noble-secp256k1 (ECDSA / Schnorr)</span><br>
+                ├── <span class="file">bech32.js</span> <span class="desc">— Bech32 / Bech32m 인코딩</span><br>
+                ├── <span class="file">crypto-js.min.js</span> <span class="desc">— SHA-256 (Taproot tagged hash)</span><br>
+                └── <span class="file">dev-docs.html</span> <span class="desc">— 이 개발 문서 페이지</span>
+            </div>
+        </section>
+
+        <!-- 3. Address Types -->
+        <section class="section" id="types">
+            <h2><span class="num">3</span> 지원 주소 타입</h2>
+            <div class="table-wrap">
+                <table>
+                    <tr><th>타입</th><th>접두사</th><th>인코딩</th><th>대소문자</th><th>구현</th></tr>
+                    <tr>
+                        <td><strong>Legacy (P2PKH)</strong></td>
+                        <td><code>1</code></td>
+                        <td>Base58Check</td>
+                        <td>구분</td>
+                        <td><code>bitcoin.payments.p2pkh</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>P2SH</strong></td>
+                        <td><code>3</code></td>
+                        <td>Base58Check</td>
+                        <td>구분</td>
+                        <td><code>p2sh({ redeem: p2wpkh })</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Bech32 (P2WPKH)</strong></td>
+                        <td><code>bc1q</code></td>
+                        <td>Bech32 (BIP-173)</td>
+                        <td>소문자</td>
+                        <td><code>bitcoin.payments.p2wpkh</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Taproot (P2TR)</strong></td>
+                        <td><code>bc1p</code></td>
+                        <td>Bech32m (BIP-350)</td>
+                        <td>소문자</td>
+                        <td>수동 BIP-341 / <code>p2tr</code></td>
+                    </tr>
+                </table>
+            </div>
+        </section>
+
+        <!-- 4. Architecture -->
+        <section class="section" id="arch">
+            <h2><span class="num">4</span> 핵심 아키텍처</h2>
+
+            <h3>4-1. 생성 흐름</h3>
+            <div class="flow">
+                <div class="flow-step">🎲 난수 32바이트</div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-step">🔑 ECPair 생성</div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-step">📝 공개키 파생</div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-step">🏠 주소 생성</div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-step">🔍 패턴 매칭</div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-step">✅ 결과 반환</div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-top:0">상세 흐름</h3>
+                <ol style="color:var(--text2); font-size:0.85rem; padding-left:1.25rem;">
+                    <li><code>crypto.getRandomValues()</code> → 32바이트 CSPRNG 난수 생성</li>
+                    <li><code>bitcoin.ECPair.fromPrivateKey(Buffer)</code> → 키페어 생성</li>
+                    <li>타입별 주소 파생 (P2PKH / P2SH / P2WPKH / P2TR)</li>
+                    <li>패턴 매칭 검사 (prefix 또는 contains)</li>
+                    <li>일치 시 WIF + hex + pubkey + 주소 반환</li>
+                    <li>불일치 시 1번으로 반복</li>
+                </ol>
+            </div>
+        </section>
+
+        <!-- 5. Protocol -->
+        <section class="section" id="protocol">
+            <h2><span class="num">5</span> Worker 메시지 프로토콜</h2>
+
+            <h3>UI → Worker (송신)</h3>
+            <div class="proto-grid">
+                <div class="proto-card send">
+                    <div class="proto-dir">UI → Worker</div>
+                    <div class="proto-cmd">start</div>
+                    <div class="proto-desc">탐색 시작. <code>pattern</code>, <code>type</code>, <code>matchMode</code> 포함</div>
+                </div>
+                <div class="proto-card send">
+                    <div class="proto-dir">UI → Worker</div>
+                    <div class="proto-cmd">pause</div>
+                    <div class="proto-desc">일시정지 (200ms 대기 루프)</div>
+                </div>
+                <div class="proto-card send">
+                    <div class="proto-dir">UI → Worker</div>
+                    <div class="proto-cmd">resume</div>
+                    <div class="proto-desc">재개</div>
+                </div>
+                <div class="proto-card send">
+                    <div class="proto-dir">UI → Worker</div>
+                    <div class="proto-cmd">stop</div>
+                    <div class="proto-desc">중지 + Worker 종료</div>
+                </div>
+            </div>
+
+            <h3>Worker → UI (수신)</h3>
+            <div class="proto-grid">
+                <div class="proto-card recv">
+                    <div class="proto-dir">Worker → UI</div>
+                    <div class="proto-cmd">progress</div>
+                    <div class="proto-desc"><code>attempts</code>, <code>speed</code>, <code>currentAddr</code></div>
+                </div>
+                <div class="proto-card recv">
+                    <div class="proto-dir">Worker → UI</div>
+                    <div class="proto-cmd">success</div>
+                    <div class="proto-desc"><code>wif</code>, <code>address</code>, <code>privHex</code>, <code>pubHex</code>, <code>attempts</code></div>
+                </div>
+                <div class="proto-card recv">
+                    <div class="proto-dir">Worker → UI</div>
+                    <div class="proto-cmd">error</div>
+                    <div class="proto-desc"><code>message</code>, <code>details</code></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 6. Modules -->
+        <section class="section" id="modules">
+            <h2><span class="num">6</span> 주요 모듈</h2>
+
+            <h3>script.js — 메인 컨트롤러</h3>
+            <div class="table-wrap">
+                <table>
+                    <tr><th>기능</th><th>구현 상세</th></tr>
+                    <tr><td>주소 타입 선택</td><td><code>.type-card</code> 클릭 → <code>selectedType</code> 변경 → 검증 규칙 갱신</td></tr>
+                    <tr><td>입력 검증</td><td>Base58: <code>0OIl</code> 금지 / Bech32: 소문자 정규화</td></tr>
+                    <tr><td>난이도 계산</td><td><code>charsetSize^patternLength</code> → 6단계 분류</td></tr>
+                    <tr><td>Worker 통신</td><td><code>new Worker('vanity-worker.js')</code> → <code>onmessage</code></td></tr>
+                    <tr><td>보안 모달</td><td>개인키 보기 → 경고 모달 → 확인 후 노출</td></tr>
+                    <tr><td>다운로드</td><td>Blob → <code>URL.createObjectURL</code> → 자동 클릭</td></tr>
+                </table>
+            </div>
+
+            <h3>vanity-worker.js — 연산 엔진</h3>
+            <div class="table-wrap">
+                <table>
+                    <tr><th>기능</th><th>구현 상세</th></tr>
+                    <tr><td>라이브러리 로드</td><td><code>fetch</code> + <code>eval</code>: buffer → bitcoinjs → CryptoJS → secp256k1 → bech32</td></tr>
+                    <tr><td>Taproot 수동 구현</td><td>x-only pubkey + TapTweak tagged hash + Bech32m 인코딩</td></tr>
+                    <tr><td>일시정지</td><td><code>isPaused</code> 플래그 → <code>setTimeout(200)</code> 대기</td></tr>
+                    <tr><td>청크 연산</td><td>100ms 단위 → 청크마다 progress 보고</td></tr>
+                </table>
+            </div>
+
+            <h3>buffer.js — Buffer Shim</h3>
+            <p><code>bitcoinjs-lib</code>는 Node.js <code>Buffer</code>를 기대합니다. 브라우저에서 <code>Uint8Array</code>를 래핑하여 호환성을 확보합니다.</p>
+            <pre><span class="comment">// 지원 메서드</span>
+Buffer.from(data, encoding)  <span class="comment">// hex, base64, utf8</span>
+Buffer.alloc(size)
+Buffer.concat(list)
+buf.toString(<span class="string">'hex'</span>)
+buf.slice(start, end)
+buf.copy(target, ...)
+buf.equals(other)
+buf.compare(other)
+buf.readUInt8(offset)
+buf.readUInt32BE(offset)</pre>
+        </section>
+
+        <!-- 7. Validation -->
+        <section class="section" id="validation">
+            <h2><span class="num">7</span> 입력 검증 정책</h2>
+
+            <h3>Base58 (Legacy / P2SH)</h3>
+            <div class="charset-box">
+                <div class="charset-label">허용 문자 (58자)</div>
+                <div class="charset-chars">123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz</div>
+            </div>
+            <div class="charset-box">
+                <div class="charset-label">금지 문자 (혼동 방지)</div>
+                <div class="charset-chars"><span class="charset-forbidden">0 O I l</span></div>
+            </div>
+
+            <h3>Bech32 / Bech32m (P2WPKH / P2TR)</h3>
+            <div class="charset-box">
+                <div class="charset-label">허용 문자 (32자)</div>
+                <div class="charset-chars">qpzry9x8gf2tvdw0s3jn54khce6mua7l</div>
+            </div>
+            <div class="alert alert-warn">
+                ⚠️ 대문자 입력 시 자동으로 소문자로 정규화됩니다.
+            </div>
+        </section>
+
+        <!-- 8. Difficulty -->
+        <section class="section" id="difficulty">
+            <h2><span class="num">8</span> 난이도 계산 로직</h2>
+
+            <pre><span class="comment">// Prefix 모드</span>
+expectedAttempts = <span class="func">charsetSize</span> ^ patternLength
+
+<span class="comment">// Contains 모드 (주소 내 포함)</span>
+expectedAttempts = <span class="func">charsetSize</span> ^ patternLength / addressLength</pre>
+
+            <div class="table-wrap">
+                <table>
+                    <tr><th>예상 시도 수</th><th>난이도</th><th>뱃지</th></tr>
+                    <tr><td>≤ 32</td><td>매우 쉬움</td><td><span class="badge badge-easy">매우 쉬움</span></td></tr>
+                    <tr><td>≤ 1,024</td><td>쉬움</td><td><span class="badge badge-easy">쉬움</span></td></tr>
+                    <tr><td>≤ 100,000</td><td>보통</td><td><span class="badge badge-normal">보통</span></td></tr>
+                    <tr><td>≤ 10,000,000</td><td>어려움</td><td><span class="badge badge-normal">어려움</span></td></tr>
+                    <tr><td>≤ 1,000,000,000</td><td>매우 어려움</td><td><span class="badge badge-hard">매우 어려움</span></td></tr>
+                    <tr><td>> 1,000,000,000</td><td>비현실적</td><td><span class="badge badge-hard">비현실적</span></td></tr>
+                </table>
+            </div>
+        </section>
+
+        <!-- 9. Security -->
+        <section class="section" id="security">
+            <h2><span class="num">9</span> 보안 설계</h2>
+
+            <div class="table-wrap">
+                <table>
+                    <tr><th>원칙</th><th>구현</th></tr>
+                    <tr><td>서버 미전송</td><td>모든 연산이 Web Worker 내부에서 실행</td></tr>
+                    <tr><td>개인키 숨김</td><td>주소만 1차 표시 → 모달 경고 후 노출</td></tr>
+                    <tr><td>메모리 정리</td><td>"메모리 정리" 버튼 → 변수 null + UI 초기화</td></tr>
+                    <tr><td>CSPRNG</td><td><code>crypto.getRandomValues()</code> 우선</td></tr>
+                    <tr><td>다운로드 보안</td><td>Blob → 일회성 URL → 즉시 revoke</td></tr>
+                </table>
+            </div>
+
+            <div class="alert alert-danger">⚠️ 이 개인키를 잃어버리면 주소를 다시 사용할 수 없습니다.</div>
+            <div class="alert alert-danger">⚠️ 개인키를 다른 사람과 공유하면 자산 통제권도 함께 넘어갑니다.</div>
+            <div class="alert alert-danger">⚠️ 공용 PC에서는 사용하지 마세요.</div>
+        </section>
+
+        <!-- 10. Output -->
+        <section class="section" id="output">
+            <h2><span class="num">10</span> 결과 출력 형식</h2>
+
+            <h3>JSON 출력 예시</h3>
+            <pre>{
+  <span class="string">"network"</span>: <span class="string">"bitcoin-mainnet"</span>,
+  <span class="string">"addressType"</span>: <span class="string">"p2pkh"</span>,
+  <span class="string">"address"</span>: <span class="string">"1ARD7vGg..."</span>,
+  <span class="string">"privateKeyWIF"</span>: <span class="string">"5K..."</span>,
+  <span class="string">"privateKeyHex"</span>: <span class="string">"a1b2c3..."</span>,
+  <span class="string">"publicKeyHex"</span>: <span class="string">"02a1b2c3..."</span>,
+  <span class="string">"attempts"</span>: 26,
+  <span class="string">"elapsedMs"</span>: 194,
+  <span class="string">"avgSpeed"</span>: 134,
+  <span class="string">"generatedAt"</span>: <span class="string">"2026-03-22T02:30:00Z"</span>,
+  <span class="string">"matchMode"</span>: <span class="string">"prefix"</span>,
+  <span class="string">"pattern"</span>: <span class="string">"A"</span>
+}</pre>
+        </section>
+
+        <!-- 11. Compatibility -->
+        <section class="section" id="compat">
+            <h2><span class="num">11</span> 브라우저 호환성</h2>
+            <div class="table-wrap">
+                <table>
+                    <tr><th>기능</th><th>최소 지원</th></tr>
+                    <tr><td>Web Worker</td><td>Chrome 4+, Firefox 3.5+, Edge 12+</td></tr>
+                    <tr><td><code>crypto.getRandomValues</code></td><td>Chrome 11+, Firefox 21+</td></tr>
+                    <tr><td><code>BigInt</code> (secp256k1)</td><td>Chrome 67+, Firefox 68+</td></tr>
+                    <tr><td><code>backdrop-filter</code> (CSS)</td><td>Chrome 76+, Firefox 103+</td></tr>
+                </table>
+            </div>
+            <div class="alert alert-info">
+                💡 권장 브라우저: <strong>Chrome 80+</strong> 또는 <strong>Firefox 80+</strong>
+            </div>
+        </section>
+
+        <!-- 12. Performance -->
+        <section class="section" id="perf">
+            <h2><span class="num">12</span> 성능 참고</h2>
+
+            <div class="perf-bar">
+                <span class="perf-label">데스크톱 Chrome (i7)</span>
+                <div class="perf-track"><div class="perf-fill" style="width:90%"></div></div>
+                <span class="perf-value">~100K–200K keys/s</span>
+            </div>
+            <div class="perf-bar">
+                <span class="perf-label">모바일 Chrome</span>
+                <div class="perf-track"><div class="perf-fill" style="width:35%"></div></div>
+                <span class="perf-value">~20K–50K keys/s</span>
+            </div>
+            <div class="perf-bar">
+                <span class="perf-label">저사양 PC</span>
+                <div class="perf-track"><div class="perf-fill" style="width:25%"></div></div>
+                <span class="perf-value">~10K–50K keys/s</span>
+            </div>
+
+            <div class="alert alert-warn" style="margin-top: 1rem;">
+                ⚠️ Taproot(P2TR)은 수동 TapTweak 계산으로 인해 다른 타입보다 2~5배 느립니다.
+            </div>
+        </section>
+
+        <!-- 13. Roadmap -->
+        <section class="section" id="roadmap">
+            <h2><span class="num">13</span> 향후 확장 방향</h2>
+            <ul class="checklist">
+                <li><span class="check">☐</span> 다중 Worker 스레드 병렬 탐색 (<code>navigator.hardwareConcurrency</code>)</li>
+                <li><span class="check">☐</span> Suffix Match, Exact Pattern Window 지원</li>
+                <li><span class="check">☐</span> 암호화 ZIP 다운로드 (AES-256)</li>
+                <li><span class="check">☐</span> 작업 저장/복원 (IndexedDB)</li>
+                <li><span class="check">☐</span> 모바일 터치 최적화</li>
+                <li><span class="check">☐</span> 성능 벤치마크 리포트 자동 생성</li>
+                <li><span class="check">☐</span> 서버 생성형 옵션 (기업용, 별도 분리)</li>
+            </ul>
+        </section>
+
+    </main>
+</div>
+
+<script>
+// Sidebar active link tracking
+const sections = document.querySelectorAll('.section');
+const navLinks = document.querySelectorAll('.nav-link');
+
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            navLinks.forEach(link => link.classList.remove('active'));
+            const activeLink = document.querySelector(`.nav-link[href="#${entry.target.id}"]`);
+            if (activeLink) activeLink.classList.add('active');
+        }
+    });
+}, { rootMargin: '-20% 0px -70% 0px' });
+
+sections.forEach(section => observer.observe(section));
+
+// Mobile sidebar close on link click
+navLinks.forEach(link => {
+    link.addEventListener('click', () => {
+        document.querySelector('.sidebar').classList.remove('open');
+    });
+});
+</script>
+</body>
+</html>
